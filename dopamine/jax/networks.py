@@ -53,29 +53,23 @@ identity_preprocess_fn = lambda x: x
 ### DQN Networks ###
 @gin.configurable
 class NatureDQNNetwork(nn.Module):
-  """The convolutional network used to compute the agent's Q-values."""
   num_actions: int
   inputs_preprocessed: bool = False
 
   @nn.compact
   def __call__(self, x):
-    initializer = nn.initializers.xavier_uniform()
     if not self.inputs_preprocessed:
-      x = preprocess_atari_inputs(x)
-    x = nn.Conv(features=32, kernel_size=(8, 8), strides=(4, 4),
-                kernel_init=initializer)(x)
+      x = x.astype(jnp.float32) / 255.
+    x = nn.Conv(features=32, kernel_size=(8, 8), strides=(4, 4), padding='valid')(x)
     x = nn.relu(x)
-    x = nn.Conv(features=64, kernel_size=(4, 4), strides=(2, 2),
-                kernel_init=initializer)(x)
+    x = nn.Conv(features=64, kernel_size=(4, 4), strides=(2, 2), padding='valid')(x)
     x = nn.relu(x)
-    x = nn.Conv(features=64, kernel_size=(3, 3), strides=(1, 1),
-                kernel_init=initializer)(x)
+    x = nn.Conv(features=64, kernel_size=(3, 3), strides=(1, 1), padding='valid')(x)
     x = nn.relu(x)
-    x = x.reshape((-1))  # flatten
-    x = nn.Dense(features=512, kernel_init=initializer)(x)
+    x = x.reshape((-1))
+    x = nn.Dense(features=512)(x)
     x = nn.relu(x)
-    q_values = nn.Dense(features=self.num_actions,
-                        kernel_init=initializer)(x)
+    q_values = nn.Dense(features=self.num_actions)(x)
     return atari_lib.DQNNetworkType(q_values)
 
 
