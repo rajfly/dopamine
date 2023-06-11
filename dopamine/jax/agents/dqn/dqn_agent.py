@@ -47,29 +47,17 @@ NATURE_DQN_DTYPE = jnp.uint8
 NATURE_DQN_STACK_SIZE = dqn_agent.NATURE_DQN_STACK_SIZE
 identity_epsilon = dqn_agent.identity_epsilon
 
-
 @gin.configurable
-def create_optimizer(name='adam', learning_rate=6.25e-5, beta1=0.9, beta2=0.999,
-                     eps=1.5e-4, centered=False):
-  """Create an optimizer for training.
-
-  Currently, only the Adam and RMSProp optimizers are supported.
-
-  Args:
-    name: str, name of the optimizer to create.
-    learning_rate: float, learning rate to use in the optimizer.
-    beta1: float, beta1 parameter for the optimizer.
-    beta2: float, beta2 parameter for the optimizer.
-    eps: float, epsilon parameter for the optimizer.
-    centered: bool, centered parameter for RMSProp.
-
-  Returns:
-    An optax optimizer.
-  """
+def create_optimizer(name='adamw', learning_rate=1e-4, beta1=0.9, beta2=0.999,
+                     eps=1e-8, centered=False, weight_decay=0.01):
   if name == 'adam':
     logging.info('Creating Adam optimizer with settings lr=%f, beta1=%f, '
                  'beta2=%f, eps=%f', learning_rate, beta1, beta2, eps)
     return optax.adam(learning_rate, b1=beta1, b2=beta2, eps=eps)
+  elif name == 'adamw':
+    logging.info('Creating AdamW optimizer with settings lr=%f, beta1=%f, '
+                 'beta2=%f, eps=%f weight_decay=%f', learning_rate, beta1, beta2, eps, weight_decay)
+    return optax.adamw(learning_rate, b1=beta1, b2=beta2, eps=eps, weight_decay=weight_decay)
   elif name == 'rmsprop':
     logging.info('Creating RMSProp optimizer with settings lr=%f, beta2=%f, '
                  'eps=%f', learning_rate, beta2, eps)
@@ -81,7 +69,6 @@ def create_optimizer(name='adam', learning_rate=6.25e-5, beta1=0.9, beta2=0.999,
     return optax.sgd(learning_rate)
   else:
     raise ValueError('Unsupported optimizer {}'.format(name))
-
 
 @functools.partial(jax.jit, static_argnums=(0, 3, 10, 11))
 def train(network_def, online_params, target_params, optimizer, optimizer_state,
