@@ -453,70 +453,65 @@ class Runner(object):
     return num_episodes, average_return, average_steps_per_second
 
   def _run_eval_phase(self, statistics):
-    """Run evaluation phase.
-
-    Args:
-      statistics: `IterationStatistics` object which records the experimental
-        results. Note - This object is modified by this method.
-
-    Returns:
-      num_episodes: int, The number of episodes run in this phase.
-      average_reward: float, The average reward generated in this phase.
-    """
-    # Perform the evaluation phase -- no learning.
     self._agent.eval_mode = True
-    _, sum_returns, num_episodes = self._run_one_phase(
-        self._evaluation_steps, statistics, 'eval')
+
+    num_episodes = 0
+    sum_returns = 0.
+    for i in range(100):
+      episode_length, episode_return = self._run_one_episode()
+      statistics.append({
+          '{}_episode_lengths'.format('eval'): episode_length,
+          '{}_episode_returns'.format('eval'): episode_return
+      })
+      sum_returns += episode_return
+      num_episodes += 1
+      if self._fine_grained_print_to_console:
+        sys.stdout.write('Eval episode number: {} '.format(num_episodes) +
+                          'Episode length: {} '.format(episode_length) +
+                          'Return: {}\r'.format(episode_return))
+        sys.stdout.flush()
+
     average_return = sum_returns / num_episodes if num_episodes > 0 else 0.0
     logging.info('Average undiscounted return per evaluation episode: %.2f',
-                 average_return)
+                  average_return)
     statistics.append({'eval_average_return': average_return})
+    np.save(os.path.join(self._base_dir, 'score.npy'),[average_return])
     return num_episodes, average_return
 
   def _run_one_iteration(self, iteration):
-    """Runs one iteration of agent/environment interaction.
-
-    An iteration involves running several episodes until a certain number of
-    steps are obtained. The interleaving of train/eval phases implemented here
-    are to match the implementation of (Mnih et al., 2015).
-
-    Args:
-      iteration: int, current iteration number, used as a global_step for saving
-        Tensorboard summaries.
-
-    Returns:
-      A dict containing summary statistics for this iteration.
-    """
     statistics = iteration_statistics.IterationStatistics()
     logging.info('Starting iteration %d', iteration)
     num_episodes_train, average_reward_train, average_steps_per_second = (
         self._run_train_phase(statistics))
-    num_episodes_eval, average_reward_eval = self._run_eval_phase(
-        statistics)
+    if iteration == (self._num_iterations - 1):
+      num_episodes_eval, average_reward_eval = self._run_eval_phase(statistics)
+    else:
+      num_episodes_eval, average_reward_eval = 0, 0
 
     if self._has_collector_dispatcher:
       self._collector_dispatcher.write([
           statistics_instance.StatisticsInstance('Train/NumEpisodes',
-                                                 num_episodes_train,
-                                                 iteration),
+                                                num_episodes_train,
+                                                iteration),
           statistics_instance.StatisticsInstance('Train/AverageReturns',
-                                                 average_reward_train,
-                                                 iteration),
+                                                average_reward_train,
+                                                iteration),
           statistics_instance.StatisticsInstance('Train/AverageStepsPerSecond',
-                                                 average_steps_per_second,
-                                                 iteration),
+                                                average_steps_per_second,
+                                                iteration),
           statistics_instance.StatisticsInstance('Eval/NumEpisodes',
-                                                 num_episodes_eval,
-                                                 iteration),
+                                                num_episodes_eval,
+                                                iteration),
           statistics_instance.StatisticsInstance('Eval/AverageReturns',
-                                                 average_reward_eval,
-                                                 iteration),
+                                                average_reward_eval,
+                                                iteration),
       ])
     if self._summary_writer is not None:
       self._save_tensorboard_summaries(iteration, num_episodes_train,
-                                       average_reward_train, num_episodes_eval,
-                                       average_reward_eval,
-                                       average_steps_per_second)
+                                      average_reward_train, num_episodes_eval,
+                                      average_reward_eval,
+                                      average_steps_per_second)
+
     return statistics.data_lists
 
   def _save_tensorboard_summaries(self, iteration,
